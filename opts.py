@@ -25,7 +25,7 @@ def parse_opt():
     parser.add_argument(
         '--video_anno',
         type=str,
-        default="./data/activitynet_annotations/anet_anno_action.json")
+        default="/media/storage/liweijie/datasets/THUMOS14/annotation")
     
     # TEM Dataset settings
     parser.add_argument(
@@ -39,7 +39,7 @@ def parse_opt():
     parser.add_argument(
         '--feature_path',
         type=str,
-        default="./data/activitynet_feature_cuhk/")
+        default="/media/storage/liweijie/datasets/THUMOS14/thumos14_features")
     
     # PEM Dataset settings
     parser.add_argument(
@@ -55,7 +55,7 @@ def parse_opt():
     parser.add_argument(
         '--tem_feat_dim',
         type=int,
-        default=400)
+        default=4096)
     parser.add_argument(
         '--tem_hidden_dim',
         type=int,
@@ -209,6 +209,14 @@ def parse_opt():
         '--save_fig_path',
         type=str,
         default="./output/evaluation_result.jpg")
+    parser.add_argument(
+        '--train_list',
+        type=str,
+        default="./data/list/train_list.txt")
+    parser.add_argument(
+        '--fps',
+        type=int,
+        default=30)
 
     args = parser.parse_args()
 

@@ -21,60 +21,79 @@ class VideoDataSet(data.Dataset):
         self.mode = opt["mode"]
         self.feature_path = opt["feature_path"]
         self.boundary_ratio = opt["boundary_ratio"]
-        self.video_info_path = opt["video_info"]
+        # 记录所有训练样本名字和起始帧的文件
+        train_file = open(opt["train_list"],'r')
+        self.train_list = train_file.readlines()
+        # 帧率
+        self.fps = opt["fps"]
+        # 所有gt的记录文件
         self.video_anno_path = opt["video_anno"]
         self._getDatasetDict()
         
     def _getDatasetDict(self):
-        anno_df = pd.read_csv(self.video_info_path)
-        anno_database= load_json(self.video_anno_path)
         self.video_dict = {}
-        for i in range(len(anno_df)):
-            video_name=anno_df.video.values[i]
-            video_info=anno_database[video_name]
-            video_subset=anno_df.subset.values[i]
-            if self.subset == "full":
-                self.video_dict[video_name] = video_info
-            if self.subset in video_subset:
-                self.video_dict[video_name] = video_info
+        for anno_filename in os.listdir(self.video_anno_path):
+            anno_file = open(os.path.join(self.video_anno_path,self.anno_filename),"r")
+            anno_content = anno_file.readlines(anno_file)
+            for anno_record in anno_content:
+                anno_record = anno_record.rstrip('\n')
+                anno_record = anno_record.split()
+                video_name = anno_record[0]
+                gt_start_frame = anno_record[1]
+                gt_end_frame = anno_record[2]
+                if not video_name in self.video_dict.keys:
+                    self.video_dict[video_name] = []
+                    self.video_dict[video_name].append([gt_start_frame,gt_end_frame])
+                else:
+                    self.video_dict[video_name].append([gt_start_frame,gt_end_frame])
+        # 返回一个字典，其键为视频名字，值为视频相关信息
         self.video_list = self.video_dict.keys()
-        print "%s subset video numbers: %d" %(self.subset,len(self.video_list))
+        print("%s subset video numbers: %d" %(self.subset,len(self.video_list)))
 
     def __getitem__(self, index):
-        video_data,anchor_xmin,anchor_xmax = self._get_base_data(index)
+        video_data,anchor_xmin,anchor_xmax,start_frame,video_name = self._get_base_data(index)
         if self.mode == "train":
-            match_score_action,match_score_start,match_score_end =  self._get_train_label(index,anchor_xmin,anchor_xmax)
+            match_score_action,match_score_start,match_score_end =  self._get_train_label(\
+                index,anchor_xmin,anchor_xmax,start_frame,video_name)
             return video_data,match_score_action,match_score_start,match_score_end
         else:
             return index,video_data,anchor_xmin,anchor_xmax
         
     def _get_base_data(self,index):
-        video_name=self.video_list[index]
+        # 从训练列表中得到csv文件名和起始帧
+        csv_name = self.train_list[index].rstrip('\n')
+        record = csv_name.split('.')[0].split('_')
+        # 典型文件名 video_validation_000051_1.csv
+        video_name = record[0:3].join('_')
+        start_frame = record[-1]
+        # 0.00 0.01 ... 0.99
         anchor_xmin=[self.temporal_gap*i for i in range(self.temporal_scale)]
+        # 0.01 0.02 ... 1.00
         anchor_xmax=[self.temporal_gap*i for i in range(1,self.temporal_scale+1)]
-        video_df=pd.read_csv(self.feature_path+ "csv_mean_"+str(self.temporal_scale)+"/"+video_name+".csv")
+        video_df=pd.read_csv(os.path.join(self.feature_path,csv_name))
         video_data = video_df.values[:,:]
         video_data = torch.Tensor(video_data)
         video_data = torch.transpose(video_data,0,1)
         video_data.float()
-        return video_data,anchor_xmin,anchor_xmax
+        return video_data,anchor_xmin,anchor_xmax,start_frame,video_name
     
-    def _get_train_label(self,index,anchor_xmin,anchor_xmax): 
-        video_name=self.video_list[index]
+    def _get_train_label(self,index,anchor_xmin,anchor_xmax,start_frame,video_name): 
+        # 将时间戳归一化为0-1之间的数
+        # 获得一个训练样本的标注
         video_info=self.video_dict[video_name]
-        video_frame=video_info['duration_frame']
-        video_second=video_info['duration_second']
-        feature_frame=video_info['feature_frame']
-        corrected_second=float(feature_frame)/video_frame*video_second
-        video_labels=video_info['annotations']
     
         gt_bbox = []
-        for j in range(len(video_labels)):
-            tmp_info=video_labels[j]
-            tmp_start=max(min(1,tmp_info['segment'][0]/corrected_second),0)
-            tmp_end=max(min(1,tmp_info['segment'][1]/corrected_second),0)
+        for j in range(len(video_info)):
+            tmp_info=video_info[j]
+            tmp_start=max(min(1,(tmp_info[0]*self.fps-start_frame)/float(self.temporal_scale)),0)
+            tmp_end=max(min(1,(tmp_info[1]*self.fps-start_frame)/float(self.temporal_scale)),0)
+            # 排除gt完全不在该样本滑窗范围内的情况
+            if (tmp_start==0 and tmp_end==0) or (tmp_start==1 and tmp_end==1):
+                continue 
             gt_bbox.append([tmp_start,tmp_end])
             
+        if (len(gt_bbox)==0):
+            print("\033[31m [WARINING] {} {} do not have gt\033[0m".format(video_name,start_frame))
         gt_bbox=np.array(gt_bbox)
         gt_xmins=gt_bbox[:,0]
         gt_xmaxs=gt_bbox[:,1]
@@ -86,6 +105,8 @@ class VideoDataSet(data.Dataset):
         
         match_score_action=[]
         for jdx in range(len(anchor_xmin)):
+            # 对每一个anchor计算其与所有gt的ioa
+            # 并取其中的最大值
             match_score_action.append(np.max(self._ioa_with_anchors(anchor_xmin[jdx],anchor_xmax[jdx],gt_xmins,gt_xmaxs)))
         match_score_start=[]
         for jdx in range(len(anchor_xmin)):
