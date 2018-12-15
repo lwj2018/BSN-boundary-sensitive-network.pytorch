@@ -22,8 +22,12 @@ class VideoDataSet(data.Dataset):
         self.feature_path = opt["feature_path"]
         self.boundary_ratio = opt["boundary_ratio"]
         # 记录所有训练样本名字和起始帧的文件
-        train_file = open(opt["train_list"],'r')
-        self.train_list = train_file.readlines()
+        if subset=="train":
+            train_file = open(opt["train_list"],'r')
+            self.list = train_file.readlines()
+        if subset=="validation":
+            test_file = open(opt["test_list"],'r')
+            self.list = test_file.readlines()
         # 帧率
         self.fps = opt["fps"]
         # 所有gt的记录文件
@@ -33,22 +37,22 @@ class VideoDataSet(data.Dataset):
     def _getDatasetDict(self):
         self.video_dict = {}
         for anno_filename in os.listdir(self.video_anno_path):
-            anno_file = open(os.path.join(self.video_anno_path,self.anno_filename),"r")
-            anno_content = anno_file.readlines(anno_file)
+            anno_file = open(os.path.join(self.video_anno_path,anno_filename),"r")
+            anno_content = anno_file.readlines()
             for anno_record in anno_content:
                 anno_record = anno_record.rstrip('\n')
                 anno_record = anno_record.split()
                 video_name = anno_record[0]
-                gt_start_frame = anno_record[1]
-                gt_end_frame = anno_record[2]
-                if not video_name in self.video_dict.keys:
+                gt_start_frame = float(anno_record[1])
+                gt_end_frame = float(anno_record[2])
+                if not video_name in self.video_dict.keys():
                     self.video_dict[video_name] = []
                     self.video_dict[video_name].append([gt_start_frame,gt_end_frame])
                 else:
                     self.video_dict[video_name].append([gt_start_frame,gt_end_frame])
         # 返回一个字典，其键为视频名字，值为视频相关信息
         self.video_list = self.video_dict.keys()
-        print("%s subset video numbers: %d" %(self.subset,len(self.video_list)))
+        print("%s subset video numbers: %d" %(self.subset,len(self.list)))
 
     def __getitem__(self, index):
         video_data,anchor_xmin,anchor_xmax,start_frame,video_name = self._get_base_data(index)
@@ -61,11 +65,11 @@ class VideoDataSet(data.Dataset):
         
     def _get_base_data(self,index):
         # 从训练列表中得到csv文件名和起始帧
-        csv_name = self.train_list[index].rstrip('\n')
+        csv_name = self.list[index].rstrip('\n')
         record = csv_name.split('.')[0].split('_')
         # 典型文件名 video_validation_000051_1.csv
-        video_name = record[0:3].join('_')
-        start_frame = record[-1]
+        video_name = ('_').join(record[0:3])
+        start_frame = int(record[-1])
         # 0.00 0.01 ... 0.99
         anchor_xmin=[self.temporal_gap*i for i in range(self.temporal_scale)]
         # 0.01 0.02 ... 1.00
@@ -85,16 +89,21 @@ class VideoDataSet(data.Dataset):
         gt_bbox = []
         for j in range(len(video_info)):
             tmp_info=video_info[j]
-            tmp_start=max(min(1,(tmp_info[0]*self.fps-start_frame)/float(self.temporal_scale)),0)
-            tmp_end=max(min(1,(tmp_info[1]*self.fps-start_frame)/float(self.temporal_scale)),0)
+            # 一个滑窗中共有1600帧
+            tmp_start=max(min(1,(tmp_info[0]*self.fps-start_frame)/float(self.temporal_scale*16)),0)
+            tmp_end=max(min(1,(tmp_info[1]*self.fps-start_frame)/float(self.temporal_scale*16)),0)
             # 排除gt完全不在该样本滑窗范围内的情况
             if (tmp_start==0 and tmp_end==0) or (tmp_start==1 and tmp_end==1):
                 continue 
+            # if (tmp_start==0 and tmp_end==1):
+                # print("\033[31m [INFO] start frame:{}\t gt_start:{}\t \
+                        # gt_end{}\t\033[0m".format(start_frame, tmp_info[0]*self.fps, tmp_info[1]*self.fps)) 
             gt_bbox.append([tmp_start,tmp_end])
             
         if (len(gt_bbox)==0):
             print("\033[31m [WARINING] {} {} do not have gt\033[0m".format(video_name,start_frame))
         gt_bbox=np.array(gt_bbox)
+        # print("\033[33m [DEBUG]\033[0m{}".format(gt_bbox))
         gt_xmins=gt_bbox[:,0]
         gt_xmaxs=gt_bbox[:,1]
 
@@ -128,7 +137,7 @@ class VideoDataSet(data.Dataset):
         return scores
     
     def __len__(self):
-        return len(self.video_list)
+        return len(self.list)
 
 
 class ProposalDataSet(data.Dataset):
@@ -158,7 +167,7 @@ class ProposalDataSet(data.Dataset):
             if self.subset in video_subset:
                 self.video_dict[video_name] = video_info
         self.video_list = self.video_dict.keys()
-        print "%s subset video numbers: %d" %(self.subset,len(self.video_list))
+        print("%s subset video numbers: %d" %(self.subset,len(self.video_list)))
 
     def __len__(self):
         return len(self.video_list)

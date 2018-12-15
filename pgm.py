@@ -3,7 +3,7 @@ import json
 import numpy
 import pandas
 import torch.multiprocessing as mp
-from scipy.interpolate import interp1d
+# from scipy.interpolate import interp1d
 
 def load_json(file):
     with open(file) as json_file:

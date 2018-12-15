@@ -20,7 +20,10 @@ class TEM(torch.nn.Module):
         
         self.conv1 = torch.nn.Conv1d(in_channels=self.feat_dim,    out_channels=self.c_hidden,kernel_size=3,stride=1,padding=1,groups=1)
         self.conv2 = torch.nn.Conv1d(in_channels=self.c_hidden,out_channels=self.c_hidden,kernel_size=3,stride=1,padding=1,groups=1)
-        self.conv3 = torch.nn.Conv1d(in_channels=self.c_hidden,out_channels=self.output_dim,   kernel_size=1,stride=1,padding=0)
+        # self.conv3 = torch.nn.Conv1d(in_channels=self.c_hidden,out_channels=self.c_hidden,   kernel_size=1,stride=1,padding=0)
+        # self.conv4 = torch.nn.Conv1d(in_channels=self.c_hidden,out_channels=self.c_hidden,   kernel_size=1,stride=1,padding=0)
+        self.conv5 = torch.nn.Conv1d(in_channels=self.c_hidden,out_channels=self.output_dim,   kernel_size=1,stride=1,padding=0)
+        self.dropout = torch.nn.Dropout(0.3)
         self.reset_params()
 
     @staticmethod
@@ -34,9 +37,16 @@ class TEM(torch.nn.Module):
             self.weight_init(m)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = torch.sigmoid(0.01*self.conv3(x))
+        x = F.elu(self.conv1(x))
+        x = self.dropout(x)
+        x = F.elu(self.conv2(x))
+        x = self.dropout(x)
+        # x = F.elu(self.conv3(x))
+        # x = self.dropout(x)
+        # x = F.elu(self.conv4(x))
+        # x = self.dropout(x)
+
+        x = torch.sigmoid(0.01*self.conv5(x))
         return x
 
 class PEM(torch.nn.Module):

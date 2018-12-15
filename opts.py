@@ -76,7 +76,7 @@ def parse_opt():
     parser.add_argument(
         '--tem_training_lr',
         type=float,
-        default=0.001)
+        default=1e-4)
     parser.add_argument(
         '--tem_weight_decay',
         type=float,
@@ -84,7 +84,7 @@ def parse_opt():
     parser.add_argument(
         '--tem_epoch',
         type=int,
-        default=20)
+        default=5000)
     parser.add_argument(
         '--tem_step_size',
         type=int,
@@ -212,7 +212,12 @@ def parse_opt():
     parser.add_argument(
         '--train_list',
         type=str,
-        default="./data/list/train_list.txt")
+        default="./data/list/true_train_list.txt")
+    parser.add_argument(
+        '--test_list',
+        type=str,
+        default="./data/list/true_test_list.txt")
+
     parser.add_argument(
         '--fps',
         type=int,
