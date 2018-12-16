@@ -59,7 +59,7 @@ def parse_opt():
     parser.add_argument(
         '--tem_hidden_dim',
         type=int,
-        default=512)
+        default=256)
 
 
     # PEM model settings
@@ -222,6 +222,12 @@ def parse_opt():
         '--fps',
         type=int,
         default=30)
+
+    parser.add_argument(
+        '--dropout',
+        type=float,
+        default=0.5
+    )
 
     args = parser.parse_args()
 

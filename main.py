@@ -43,7 +43,9 @@ def train_TEM(data_loader,model,optimizer,epoch,writer,opt):
     writer.add_scalars('data/end', {'train': epoch_end_loss/(n_iter+1)}, epoch)
     writer.add_scalars('data/cost', {'train': epoch_cost/(n_iter+1)}, epoch)
 
-    print("\033[35m TEM training loss(epoch %d): action - %.03f, start - %.03f, end - %.03f\033[0m" %(epoch,epoch_action_loss/(n_iter+1),
+    print("\033[35m [%.01f]TEM training loss(epoch %d): action - %.03f, start - %.03f, end - %.03f\033[0m"\
+                                                                                     %(opt['dropout'],
+                                                                                        epoch,epoch_action_loss/(n_iter+1),
                                                                                         epoch_start_loss/(n_iter+1),
                                                                                         epoch_end_loss/(n_iter+1)))
 
@@ -72,10 +74,10 @@ def test_TEM(data_loader,model,epoch,writer,opt):
                                                                                         epoch_end_loss/(n_iter+1)))
     state = {'epoch': epoch + 1,
                 'state_dict': model.state_dict()}
-    torch.save(state, opt["checkpoint_path"]+"/tem_dropout_checkpoint.pth.tar" )
+    torch.save(state, opt["checkpoint_path"]+"/tem_dropout{}_checkpoint.pth.tar".format(opt['dropout']) )
     if epoch_cost< model.module.tem_best_loss:
         model.module.tem_best_loss = np.mean(epoch_cost)
-        torch.save(state, opt["checkpoint_path"]+"/tem_dropout_best.pth.tar" )
+        torch.save(state, opt["checkpoint_path"]+"/tem_dropout{}_best.pth.tar".format(opt['dropout']) )
 
 def train_PEM(data_loader,model,optimizer,epoch,writer,opt):
     model.train()
